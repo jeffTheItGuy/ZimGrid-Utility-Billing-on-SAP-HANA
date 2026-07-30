@@ -1,0 +1,23 @@
+# ============================================================
+# Backend Dockerfile — DEVELOPMENT
+# Uses tsx for hot-reload (no build step needed)
+# ============================================================
+
+FROM node:20-alpine
+
+# Install system deps for native modules
+RUN apk add --no-cache     python3     make     g++     libc6-compat
+
+WORKDIR /app
+
+# Install dependencies (cached layer)
+COPY package*.json ./
+RUN npm install
+
+# Source code is mounted as volume in docker-compose.dev.yml
+# We only need the entrypoint here
+
+EXPOSE 4000
+
+# Dev mode: tsx watch for hot reload
+CMD ["npm", "run", "dev"]

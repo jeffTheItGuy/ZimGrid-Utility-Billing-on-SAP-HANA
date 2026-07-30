@@ -1,0 +1,20 @@
+# ============================================================
+# Frontend Dockerfile — DEVELOPMENT
+# Uses Vite dev server with HMR
+# ============================================================
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies (cached layer)
+COPY package*.json ./
+RUN npm install
+
+# Source code is mounted as volume in docker-compose.dev.yml
+# We only need the entrypoint here
+
+EXPOSE 5173
+
+# Dev mode: Vite HMR server
+CMD ["npm", "run", "dev", "--", "--host"]

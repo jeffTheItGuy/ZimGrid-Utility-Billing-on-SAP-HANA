@@ -1,0 +1,44 @@
+# ============================================================
+# Backend .gitignore
+# ============================================================
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# HANA client binaries (large, platform-specific)
+*.so
+*.dll
+*.dylib
+
+# Local dev databases
+*.db
+*.sqlite
+*.sqlite3

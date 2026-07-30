@@ -1,0 +1,114 @@
+version: "3.9"
+
+services:
+  # === Development Database (PostgreSQL with HANA-compatible schema) ===
+  postgres-dev:
+    image: postgres:16-alpine
+    container_name: zesa-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: zesa_billing
+      POSTGRES_USER: zesa_admin
+      POSTGRES_PASSWORD: zesa_dev_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - zesa-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zesa_admin -d zesa_billing"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # === Redis (Token idempotency, session cache, rate limiting) ===
+  redis:
+    image: redis:7-alpine
+    container_name: zesa-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - zesa-network
+    command: redis-server --appendonly yes
+
+  # === Backend API ===
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: zesa-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DB_HOST: postgres-dev
+      DB_PORT: 5432
+      DB_NAME: zesa_billing
+      DB_USER: zesa_admin
+      DB_PASSWORD: zesa_dev_pass
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: dev-jwt-secret-change-in-prod
+    volumes:
+      - ./backend/src:/app/src
+      - /app/node_modules
+    ports:
+      - "4000:4000"
+    networks:
+      - zesa-network
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: npm run dev
+
+  # === Frontend (React + Vite) ===
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: zesa-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:4000/api/v1
+    volumes:
+      - ./frontend/src:/app/src
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    networks:
+      - zesa-network
+    depends_on:
+      - backend
+    command: npm run dev -- --host
+
+  # === Grafana (Ops Dashboard) ===
+  grafana:
+    image: grafana/grafana:10.3.0
+    container_name: zesa-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana-dashboards:/etc/grafana/provisioning/dashboards
+    ports:
+      - "3000:3000"
+    networks:
+      - zesa-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  grafana_data:
+
+networks:
+  zesa-network:
+    driver: bridge

@@ -1,0 +1,169 @@
+version: "3.9"
+
+# ============================================================
+# DEVELOPMENT COMPOSE
+# Hot-reload for backend (tsx watch) and frontend (vite HMR)
+# No build step required — mounts source code as volumes
+# Includes: PostgreSQL + Redis + pgAdmin + Mailpit
+# ============================================================
+
+services:
+  # === PostgreSQL (Dev) ===
+  postgres-dev:
+    image: postgres:16-alpine
+    container_name: zesa-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: zesa_billing
+      POSTGRES_USER: zesa_admin
+      POSTGRES_PASSWORD: zesa_dev_pass
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+      - ./database/seeds:/docker-entrypoint-initdb.d/seeds:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - zesa-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zesa_admin -d zesa_billing"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # === Redis (Dev) ===
+  redis:
+    image: redis:7-alpine
+    container_name: zesa-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - zesa-dev
+
+  # === pgAdmin (Database GUI) ===
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: zesa-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@zesa.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    networks:
+      - zesa-dev
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+
+  # === Mailpit (Email testing for notifications) ===
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: zesa-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"   # Web UI
+      - "1025:1025"   # SMTP
+    networks:
+      - zesa-dev
+
+  # === Backend (Dev — hot reload via tsx watch) ===
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: zesa-backend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DB_HOST: postgres-dev
+      DB_PORT: 5432
+      DB_NAME: zesa_billing
+      DB_USER: zesa_admin
+      DB_PASSWORD: zesa_dev_pass
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: dev-jwt-secret-change-in-prod
+      LOG_LEVEL: debug
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+    volumes:
+      - ./backend/src:/app/src:ro
+      - ./backend/package.json:/app/package.json:ro
+      - /app/node_modules
+    ports:
+      - "4000:4000"
+    networks:
+      - zesa-dev
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: npm run dev
+    stdin_open: true
+    tty: true
+
+  # === Frontend (Dev — Vite HMR) ===
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: zesa-frontend-dev
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:4000/api/v1
+      VITE_APP_NAME: "ZESA Billing Ops [DEV]"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
+      - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/package.json:/app/package.json:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    networks:
+      - zesa-dev
+    depends_on:
+      - backend
+    command: npm run dev -- --host
+    stdin_open: true
+    tty: true
+
+  # === Grafana (Dev dashboards) ===
+  grafana:
+    image: grafana/grafana:10.3.0
+    container_name: zesa-grafana-dev
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: ""
+      GF_SERVER_ROOT_URL: http://localhost:3000
+    volumes:
+      - grafana_dev_data:/var/lib/grafana
+      - ./observability/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - zesa-dev
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
+  pgadmin_data:
+  grafana_dev_data:
+
+networks:
+  zesa-dev:
+    driver: bridge
