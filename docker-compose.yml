@@ -4,21 +4,21 @@ services:
   # === Development Database (PostgreSQL with HANA-compatible schema) ===
   postgres-dev:
     image: postgres:16-alpine
-    container_name: zesa-postgres
+    container_name: zimgrid-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: zesa_billing
-      POSTGRES_USER: zesa_admin
-      POSTGRES_PASSWORD: zesa_dev_pass
+      POSTGRES_DB: zimgrid_billing
+      POSTGRES_USER: zimgrid_admin
+      POSTGRES_PASSWORD: zimgrid_dev_pass
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/migrations:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     networks:
-      - zesa-network
+      - zimgrid-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zesa_admin -d zesa_billing"]
+      test: ["CMD-SHELL", "pg_isready -U zimgrid_admin -d zimgrid_billing"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,14 +26,14 @@ services:
   # === Redis (Token idempotency, session cache, rate limiting) ===
   redis:
     image: redis:7-alpine
-    container_name: zesa-redis
+    container_name: zimgrid-redis
     restart: unless-stopped
     volumes:
       - redis_data:/data
     ports:
       - "6379:6379"
     networks:
-      - zesa-network
+      - zimgrid-network
     command: redis-server --appendonly yes
 
   # === Backend API ===
@@ -41,16 +41,16 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: zesa-backend
+    container_name: zimgrid-backend
     restart: unless-stopped
     environment:
       NODE_ENV: development
       PORT: 4000
       DB_HOST: postgres-dev
       DB_PORT: 5432
-      DB_NAME: zesa_billing
-      DB_USER: zesa_admin
-      DB_PASSWORD: zesa_dev_pass
+      DB_NAME: zimgrid_billing
+      DB_USER: zimgrid_admin
+      DB_PASSWORD: zimgrid_dev_pass
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: dev-jwt-secret-change-in-prod
@@ -60,7 +60,7 @@ services:
     ports:
       - "4000:4000"
     networks:
-      - zesa-network
+      - zimgrid-network
     depends_on:
       postgres-dev:
         condition: service_healthy
@@ -73,7 +73,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: zesa-frontend
+    container_name: zimgrid-frontend
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: http://localhost:4000/api/v1
@@ -83,26 +83,11 @@ services:
     ports:
       - "5173:5173"
     networks:
-      - zesa-network
+      - zimgrid-network
     depends_on:
       - backend
     command: npm run dev -- --host
 
-  # === Grafana (Ops Dashboard) ===
-  grafana:
-    image: grafana/grafana:10.3.0
-    container_name: zesa-grafana
-    restart: unless-stopped
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./observability/grafana-dashboards:/etc/grafana/provisioning/dashboards
-    ports:
-      - "3000:3000"
-    networks:
-      - zesa-network
 
 volumes:
   postgres_data:
@@ -110,5 +95,5 @@ volumes:
   grafana_data:
 
 networks:
-  zesa-network:
+  zimgrid-network:
     driver: bridge

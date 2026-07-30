@@ -60,22 +60,6 @@ docker-compose up --build
 
 ---
 
-## Architecture
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   React 18      │────▶│  Node.js API    │────▶│  SAP HANA 2.0   │
-│   (Vite +       │     │  (Express +     │     │  (Column Store  │
-│   Tailwind)     │◄────│   TypeScript)   │◄────│   + MDC)        │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                        │
-                                              ┌─────────┴─────────┐
-                                              ▼                   ▼
-                                       ┌──────────┐        ┌──────────┐
-                                       │  Primary │◄──────►│    DR    │
-                                       │  (HANA)  │   SR   │  (HANA)  │
-                                       └──────────┘        └──────────┘
-```
 
 **Stack:** `SAP HANA 2.0` · `S/4HANA 2023` · `Node.js 20` · `React 18` · `Redis 7` · `Docker`
 
