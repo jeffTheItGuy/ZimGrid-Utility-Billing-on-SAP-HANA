@@ -1,8 +1,8 @@
 import { Pool } from 'pg';
 import { logger } from '../utils/logger';
+import { hanaQuery, hanaConfig } from './hana';
 
-const isHana = process.env.USE_HANA === 'true';
-
+// PostgreSQL pool (Development / HANA-compatible schema)
 export const db = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
@@ -18,12 +18,10 @@ db.on('error', (err) => {
   logger.error('Unexpected database error', err);
 });
 
-export const hanaConfig = {
-  host: process.env.HANA_HOST,
-  port: parseInt(process.env.HANA_PORT || '30015'),
-  user: process.env.HANA_USER,
-  password: process.env.HANA_PASSWORD,
-  databaseName: process.env.HANA_TENANT_DB || 'HDB',
-};
+// HANA configuration & query helper
+export { hanaQuery, hanaConfig };
 
-logger.info(`Database pool initialized (${isHana ? 'HANA' : 'PostgreSQL'})`);
+// Landscape mode indicator
+export const landscapeMode = process.env.USE_HANA === 'true' ? 'SAP_HANA_PROD' : 'POSTGRESQL_DEV';
+
+logger.info(`Database pool initialized [Landscape: ${landscapeMode}]`);

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/database';
+import { db, landscapeMode } from '../config/database';
 import { redis } from '../config/redis';
 
 export const healthRouter = Router();
@@ -10,7 +10,12 @@ healthRouter.get('/', async (req, res) => {
 
   res.json({
     status: dbHealth === 'healthy' && redisHealth === 'healthy' ? 'ok' : 'degraded',
-    services: { database: dbHealth, cache: redisHealth },
+    landscape: landscapeMode,
+    services: { 
+      database: dbHealth, 
+      cache: redisHealth,
+      mode: landscapeMode 
+    },
     timestamp: new Date().toISOString(),
   });
 });

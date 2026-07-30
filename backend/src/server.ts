@@ -14,6 +14,7 @@ import { billingRouter } from './routes/billing';
 import { paymentRouter } from './routes/payments';
 import { operationsRouter } from './routes/operations';
 import { prepaidRouter } from './routes/prepaid';
+import { hanaAdminRouter } from './routes/hana-admin';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use('/api/v1/billing', billingRouter);
 app.use('/api/v1/payments', paymentRouter);
 app.use('/api/v1/operations', operationsRouter);
 app.use('/api/v1/prepaid', prepaidRouter);
+app.use('/api/v1/hana-admin', hanaAdminRouter);
 
 app.use(errorHandler);
 
@@ -51,5 +53,6 @@ process.on('SIGTERM', async () => {
 
 app.listen(PORT, () => {
   logger.info(`ZESA Billing API running on port ${PORT}`);
+  logger.info(`Landscape: ${process.env.USE_HANA === 'true' ? 'SAP HANA PRODUCTION' : 'PostgreSQL Development'}`);
   logger.info(`Database: ${process.env.DB_HOST}:${process.env.DB_PORT}`);
 });

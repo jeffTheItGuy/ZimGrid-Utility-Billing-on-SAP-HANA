@@ -10,6 +10,7 @@ services:
       POSTGRES_DB: zimgrid_billing
       POSTGRES_USER: zimgrid_admin
       POSTGRES_PASSWORD: zimgrid_dev_pass
+      PGADMIN_DEFAULT_EMAIL: admin@zimgrid.com
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/migrations:/docker-entrypoint-initdb.d
@@ -22,6 +23,26 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # === SAP HANA 2.0 Express Edition (Optional) ===
+  # Uncomment if you have a HANA Express image or SAP registry access.
+  # This demonstrates MDC (Multi-Database Container) topology knowledge.
+  # hana:
+  #   image: saplabs/hanaexpress:2.00.061.00.20220519.1
+  #   container_name: zimgrid-hana
+  #   restart: unless-stopped
+  #   hostname: hana-primary
+  #   volumes:
+  #     - hana_data:/hana/mounts
+  #   ports:
+  #     - "39013:39013"  # System DB SQL port
+  #     - "39015:39015"  # Tenant DB (HDB) SQL port
+  #     - "39041:39041"  # XS Advanced
+  #   networks:
+  #     - zimgrid-network
+  #   environment:
+  #     AGREE_TO_SAP_LICENSE: "true"
+  #     MASTER_PASSWORD: "HanaExpress123!"
 
   # === Redis (Token idempotency, session cache, rate limiting) ===
   redis:
@@ -54,6 +75,12 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: dev-jwt-secret-change-in-prod
+      # USE_HANA: "true"
+      # HANA_HOST: hana
+      # HANA_PORT: 39015
+      # HANA_USER: SYSTEM
+      # HANA_PASSWORD: HanaExpress123!
+      # HANA_TENANT_DB: HDB
     volumes:
       - ./backend/src:/app/src
       - /app/node_modules
@@ -88,11 +115,10 @@ services:
       - backend
     command: npm run dev -- --host
 
-
 volumes:
   postgres_data:
   redis_data:
-  grafana_data:
+  hana_data:
 
 networks:
   zimgrid-network:
