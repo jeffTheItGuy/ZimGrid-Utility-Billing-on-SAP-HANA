@@ -13,7 +13,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: admin@zimgrid.com
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/migrations:/docker-entrypoint-initdb.d
+      - ./db/migrations:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     networks:
