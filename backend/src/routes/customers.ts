@@ -5,21 +5,26 @@ export const customerRouter = Router();
 
 customerRouter.get('/', async (req, res) => {
   const { page = '1', limit = '20', search } = req.query;
-  const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+  const pageNum = parseInt(page as string);
+  const limitNum = parseInt(limit as string);
+  const offset = (pageNum - 1) * limitNum;
 
   let query = 'SELECT * FROM business_partners WHERE is_active = true';
-  let params: any[] = [];
+  const params: any[] = [];
 
   if (search) {
-    query += ' AND (first_name ILIKE $1 OR last_name ILIKE $1 OR partner_number ILIKE $1)';
-    params.push(`%${search}%`);
+    const term = `%${search}%`;
+    query += ' AND (first_name ILIKE $' + (params.length + 1) + 
+             ' OR last_name ILIKE $' + (params.length + 2) + 
+             ' OR partner_number ILIKE $' + (params.length + 3) + ')';
+    params.push(term, term, term);
   }
 
   query += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
-  params.push(limit, offset);
+  params.push(limitNum, offset);
 
   const result = await db.query(query, params);
-  res.json({ data: result.rows, page: parseInt(page as string), limit: parseInt(limit as string) });
+  res.json({ data: result.rows, page: pageNum, limit: limitNum });
 });
 
 customerRouter.get('/:id/installations', async (req, res) => {

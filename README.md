@@ -1,6 +1,6 @@
 # ZimGrid — Utility Billing & Grid Operations on SAP HANA
 
-> **A production-grade database operations platform for power utilities, engineered on SAP HANA 2.0 with real-time monitoring, disaster recovery architecture, and multi-currency billing.**
+> **A production-grade database operations platform for power utilities, engineered on SAP HANA 2.0 with real-time monitoring, disaster recovery architecture, multi-currency billing, and a transparent dual-engine database layer.**
 > 
 > **Built as a portfolio project to demonstrate SAP S/4 HANA Database Administration expertise for the ZESA Holdings Systems Engineer (SAP S/4 HANA DBA) role.**
 
@@ -14,6 +14,8 @@ The backend runs on **SAP HANA 2.0** (column-store, in-memory) with a **React op
 
 For local development and portfolio review, the project uses **PostgreSQL with a HANA-compatible schema** — all table structures, partitioning annotations, spatial indexes, and DBA runbooks are designed for **direct migration to SAP HANA 2.0**.
 
+The critical architectural addition is a **Database Adapter Layer** with an **SQL Dialect Translator**. The same API codebase — customers, meters, billing, payments, prepaid tokens — runs transparently against either PostgreSQL (dev) or SAP HANA (production) without changing a single line of route logic. Flip `USE_HANA=true` and the application switches engines at runtime.
+
 ---
 
 ## Why This Matters for the Role
@@ -26,6 +28,7 @@ For local development and portfolio review, the project uses **PostgreSQL with a
 | Monitor & troubleshoot | Operations dashboard with slow query tracking, table growth alerts, replication lag |
 | Implement upgrades & patches | Documented patch strategy, zero-downtime tenant migration approach |
 | Manage user access & permissions | Role-based analytic privileges, row-level security, audit trail compliance |
+| **Cross-engine portability** | **Database adapter pattern + SQL translator enabling seamless PostgreSQL ↔ HANA migration** |
 
 ---
 
@@ -62,7 +65,7 @@ For local development and portfolio review, the project uses **PostgreSQL with a
          └──────────────┘    └──────────────┘
 ```
 
-### Dual-Database Landscape
+### Dual-Database Landscape with Adapter Layer
 
 ```
 ┌─────────────────────────┐         ┌─────────────────────────┐
@@ -81,8 +84,22 @@ For local development and portfolio review, the project uses **PostgreSQL with a
          │
          │  USE_HANA=true
          ▼
-  @sap/hana-client connects
-  to HANA tenant via SQL port
+  ┌──────────────────────────────────────────┐
+  │        Database Adapter Layer            │
+  │  ┌────────────────────────────────────┐  │
+  │  │   PostgresAdapter  (pg Pool)       │  │
+  │  │   HanaAdapter      (@sap/hana)     │  │
+  │  └────────────────────────────────────┘  │
+  │  ┌────────────────────────────────────┐  │
+  │  │   SQL Dialect Translator           │  │
+  │  │   $1 → ?  |  ILIKE → UPPER()      │  │
+  │  │   NOW() → CURRENT_TIMESTAMP        │  │
+  │  │   INTERVAL → ADD_MONTHS/ADD_DAYS   │  │
+  │  │   DATE_TRUNC → TRUNC               │  │
+  │  │   TIMESTAMPTZ → TIMESTAMP          │  │
+  │  │   PostGIS → ST_GEOMETRY            │  │
+  │  └────────────────────────────────────┘  │
+  └──────────────────────────────────────────┘
 ```
 
 ### HANA Configuration
@@ -113,6 +130,58 @@ For local development and portfolio review, the project uses **PostgreSQL with a
 - **Table growth visualization** — column-store size trends with partition pruning stats
 - **Backup verification panel** — last full backup, incremental status, catalog integrity (`M_BACKUP_CATALOG`)
 - **Long-running statement alerts** — performance troubleshooting via `M_ACTIVE_STATEMENTS`
+- **Transparent engine switching** — same API codebase runs on PostgreSQL (dev) or HANA (prod) via adapter pattern
+
+---
+
+## Database Adapter Layer
+
+The adapter layer is the core architectural feature that makes this project production-grade. It solves the problem of maintaining two separate codebases (or fragile `if/else` blocks) when supporting two different SQL dialects.
+
+### How It Works
+
+1. **Environment Variable** — `USE_HANA` determines which adapter is instantiated at startup.
+2. **Unified Interface** — All routes call `db.query()` and `db.getSystemHealth()` without knowing which engine is underneath.
+3. **SQL Translation** — When `USE_HANA=true`, the `HanaAdapter` passes every SQL statement through a translator before executing it via `@sap/hana-client`.
+
+### Translation Rules
+
+| PostgreSQL | SAP HANA | Use Case |
+|---|---|---|
+| `$1, $2` | `?` | Positional parameters |
+| `ILIKE` | `UPPER() LIKE UPPER()` | Case-insensitive search |
+| `NOW()` | `CURRENT_TIMESTAMP` | Current timestamp |
+| `INTERVAL '12 months'` | `ADD_MONTHS(CURRENT_DATE, -12)` | Date arithmetic |
+| `DATE_TRUNC('month', col)` | `TRUNC(col, 'MONTH')` | Monthly aggregation |
+| `TIMESTAMPTZ` | `TIMESTAMP` | Timestamp type |
+| `ON CONFLICT DO NOTHING` | *(stripped)* | Upsert handling |
+| `ST_SetSRID(ST_MakePoint(...), 4326)` | `NEW ST_POINT(...).ST_SRID(4326)` | Spatial data |
+| `pg_database_size()` | `M_HOST_INFORMATION` / `M_MEMORY` | Database size |
+| `pg_stat_activity` | `M_CONNECTIONS` | Active sessions |
+| `pg_stat_user_tables` | `M_TABLES` | Table growth |
+
+### INSERT Pattern (Portable)
+
+HANA does not support PostgreSQL's `RETURNING` clause in the same way. The adapter uses a **natural-key insert + select** pattern:
+
+```typescript
+// 1. Generate deterministic document number
+const docNum = `PAY-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+// 2. Insert without RETURNING
+await db.query(
+  `INSERT INTO incoming_payments (payment_document_number, ...) VALUES (?, ...)`,
+  [docNum, ...]
+);
+
+// 3. Select back by natural key
+const result = await db.query(
+  `SELECT payment_id FROM incoming_payments WHERE payment_document_number = ?`,
+  [docNum]
+);
+```
+
+This pattern works identically on both PostgreSQL and HANA.
 
 ---
 
@@ -169,13 +238,28 @@ docker-compose -f docker-compose.dev.yml up --build
 docker-compose up --build
 ```
 
+### Switch to SAP HANA Mode
+
+Edit `.env`:
+
+```env
+USE_HANA=true
+HANA_HOST=10.0.1.10
+HANA_PORT=30015
+HANA_USER=SYSTEM
+HANA_PASSWORD=yourpassword
+HANA_TENANT_DB=HDB
+```
+
+Restart the backend. The same API now queries the HANA tenant DB for business transactions and HANA system views for DBA monitoring. The frontend automatically detects the landscape mode and updates the sidebar badge from **"PostgreSQL — Dev Mode"** to **"HANA Primary — Harare"**.
+
 ### Access Points
 
 | Service | URL | Notes |
 |---------|-----|-------|
 | Frontend Dashboard | http://localhost:5173 | React + Vite |
 | REST API | http://localhost:4000/api/v1 | Express + TypeScript |
-| Health Check | http://localhost:4000/api/v1/health | Shows landscape mode (PostgreSQL dev / HANA prod) |
+| Health Check | http://localhost:4000/api/v1/health | Returns landscape mode (`SAP_HANA_PROD` or `POSTGRESQL_DEV`) |
 | HANA Admin API | http://localhost:4000/api/v1/hana-admin | Memory, replication, delta merge, backup catalog |
 
 ---
@@ -217,16 +301,26 @@ When `USE_HANA=true`, these query live HANA system views. In dev mode, they retu
 
 ## PostgreSQL → SAP HANA Migration
 
-This project uses **PostgreSQL for local development** with a schema designed for direct migration to SAP HANA 2.0:
+This project uses **PostgreSQL for local development** with a schema designed for direct migration to SAP HANA 2.0. The adapter layer eliminates the need for a separate HANA codebase:
 
-1. Swap `pg` driver for `@sap/hana-client` (already in `package.json`)
-2. Convert `BIGSERIAL` → `BIGINT GENERATED ALWAYS AS IDENTITY`
-3. Convert `GEOGRAPHY` → `ST_GEOMETRY(4326)`
-4. Convert `JSONB` → `NCLOB` or JSON document store
-5. Enable column store on all fact tables (`ALTER TABLE ... COLUMN LOADABLE`)
-6. Activate range + hash partitioning
-7. Configure System Replication (Primary → Secondary)
-8. Deploy analytic privileges for regional data isolation
+1. Set `USE_HANA=true` in environment configuration
+2. The `HanaAdapter` takes over — all business routes now execute against the HANA tenant DB
+3. The `SQL Translator` automatically converts dialect differences at runtime
+4. Install `@sap/hana-client` driver (already in `package.json`)
+5. Configure System Replication (Primary → Secondary)
+6. Deploy analytic privileges for regional data isolation
+
+**No route code changes required.** The migration is purely infrastructure and configuration.
+
+### Manual Schema Notes (for reference)
+
+| PostgreSQL | SAP HANA | Notes |
+|---|---|---|
+| `BIGSERIAL PRIMARY KEY` | `BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY` | Auto-increment |
+| `GEOGRAPHY(POINT,4326)` | `ST_GEOMETRY(4326)` | Spatial data |
+| `JSONB` | `NCLOB` or JSON document store | Semi-structured data |
+| `COLUMN STORE` (comments) | `ALTER TABLE ... COLUMN LOADABLE` | Fact tables |
+| `RANGE + HASH` (comments) | `CREATE PARTITION ON ...` | Partitioning |
 
 See `docs/runbooks/POSTGRES_TO_HANA_MIGRATION.md` for the full migration checklist.
 
@@ -262,6 +356,8 @@ See `docs/runbooks/POSTGRES_TO_HANA_MIGRATION.md` for the full migration checkli
 - **Disaster Recovery** — Backup catalog management, point-in-time recovery, failover runbooks
 - **Security & Compliance** — Row-level security, audit logging, X.509 certificate auth
 - **Landscape Architecture** — Dual-mode database layer (PostgreSQL dev ↔ HANA prod) with zero-downtime migration path
+- **Database Adapter Pattern** — Runtime engine abstraction with unified `DatabaseAdapter` interface
+- **SQL Dialect Engineering** — Cross-engine translator handling parameters, date arithmetic, spatial types, and upsert patterns
 - **Full-Stack Engineering** — Node.js API design, React dashboard, Docker containerization
 - **Domain Expertise** — Utility billing, prepaid metering, multi-currency, grid asset management
 
@@ -274,4 +370,3 @@ MIT — Built for portfolio and educational purposes. Not affiliated with any ut
 ---
 
 **Built for the ZESA Holdings Systems Engineer (SAP S/4 HANA Database Administrator) position**
-

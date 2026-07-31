@@ -12,12 +12,18 @@ paymentRouter.post('/process', async (req, res) => {
     return res.status(409).json({ error: 'Duplicate payment detected', payment_id: existing });
   }
 
-  const result = await db.query(
+  const paymentDocNum = `PAY-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+  await db.query(
     `INSERT INTO incoming_payments 
-     (contract_account_id, amount, payment_method, payment_reference, currency_code)
-     VALUES ($1, $2, $3, $4, 'USD')
-     RETURNING payment_id`,
-    [account_id, amount, method, reference]
+     (payment_document_number, contract_account_id, amount, payment_method, payment_reference, currency_code)
+     VALUES ($1, $2, $3, $4, $5, 'USD')`,
+    [paymentDocNum, account_id, amount, method, reference]
+  );
+
+  const result = await db.query(
+    `SELECT payment_id FROM incoming_payments WHERE payment_document_number = $1`,
+    [paymentDocNum]
   );
 
   const payment_id = result.rows[0].payment_id;

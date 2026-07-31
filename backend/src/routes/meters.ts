@@ -21,13 +21,13 @@ meterRouter.get('/readings', async (req, res) => {
 meterRouter.get('/:id/consumption-trend', async (req, res) => {
   const { id } = req.params;
   const result = await db.query(
-    `SELECT DATE_TRUNC('month', reading_date) as month,
+    `SELECT TO_CHAR(reading_date, 'YYYY-MM') as month,
             SUM(consumption_kwh) as total_kwh,
             COUNT(*) as reading_count
      FROM meter_readings
      WHERE equipment_id = $1
-     AND reading_date >= CURRENT_DATE - INTERVAL '12 months'
-     GROUP BY DATE_TRUNC('month', reading_date)
+     AND reading_date >= ADD_MONTHS(CURRENT_DATE, -12)
+     GROUP BY TO_CHAR(reading_date, 'YYYY-MM')
      ORDER BY month`,
     [id]
   );

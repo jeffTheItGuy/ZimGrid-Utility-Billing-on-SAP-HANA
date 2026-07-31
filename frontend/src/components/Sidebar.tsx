@@ -1,4 +1,6 @@
 import { NavLink } from 'react-router-dom'
+import { useQuery } from 'react-query'
+import { api } from '../services/api'
 import { 
   LayoutDashboard, Users, Gauge, Receipt, CreditCard, 
   Zap, Map, Activity, Database 
@@ -15,6 +17,13 @@ const navItems = [
 ]
 
 export function Sidebar() {
+  const { data: health } = useQuery('sidebar-health', () =>
+    api.get('/health').then((r) => r.data),
+    { refetchInterval: 30000 }
+  )
+
+  const isHana = health?.landscape === 'SAP_HANA_PROD'
+
   return (
     <aside className="w-64 bg-slate-900 text-white flex flex-col">
       <div className="p-6 flex items-center gap-3">
@@ -44,14 +53,25 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
+      <div className="p-4 border-t border-slate-800 space-y-2">
         <div className="flex items-center gap-2 text-xs text-slate-500">
-          <Activity className="w-4 h-4 text-green-400" />
-          <span>HANA Primary — Harare</span>
+          <Activity className={`w-4 h-4 ${health?.status === 'ok' ? 'text-green-400' : 'text-red-400'}`} />
+          <span>
+            {isHana ? 'HANA Primary — Harare' : 'PostgreSQL — Dev Mode'}
+          </span>
         </div>
-        <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-          <Activity className="w-4 h-4 text-green-400" />
-          <span>Replication — Bulawayo</span>
+        {isHana && (
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <Activity className="w-4 h-4 text-green-400" />
+            <span>Replication — Bulawayo</span>
+          </div>
+        )}
+        <div className="pt-2">
+          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${
+            isHana ? 'bg-purple-900 text-purple-300' : 'bg-slate-800 text-slate-400'
+          }`}>
+            {health?.landscape || 'POSTGRESQL_DEV'}
+          </span>
         </div>
       </div>
     </aside>
