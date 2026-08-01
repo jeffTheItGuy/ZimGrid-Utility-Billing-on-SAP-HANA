@@ -1,0 +1,86 @@
+namespace: zesademo
+
+replicaCount: 1
+
+image:
+  repository: zesa-billing-backend
+  tag: ""
+  pullPolicy: Never
+  pullSecrets: []
+
+service:
+  port: 4000
+  type: ClusterIP
+
+ingress:
+  className: traefik
+  host: api.demo3.nimbusurf.com
+  path: /
+  tlsSecretName: demo3-nimbusurf-tls
+
+envFrom:
+  - secretRef:
+      name: database-secrets
+  - secretRef:
+      name: redis-secrets
+  - secretRef:
+      name: hana-secrets
+
+env:
+  PORT: "4000"
+  FRONTEND_URL: "https://demo3.nimbusurf.com"
+  ALLOWED_ORIGINS: "https://demo3.nimbusurf.com,http://localhost:5173"
+  DB_HOST: "zesa-billing-postgresql-svc"
+  DB_PORT: "5432"
+  DB_NAME: "zimgrid_billing"
+  REDIS_HOST: "zesa-billing-redis-svc"
+  REDIS_PORT: "6379"
+  REDIS_URL: "redis://:$(REDIS_PASSWORD)@zesa-billing-redis-svc:6379"
+  USE_HANA: "false"
+  LOG_LEVEL: "info"
+
+resources:
+  limits:
+    cpu: "400m"
+    memory: "512Mi"
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 3000
+  fsGroup: 2000
+  seccompProfile:
+    type: RuntimeDefault
+
+networkPolicy:
+  allowedFrom:
+    - app: zesa-billing-frontend
+  allowedTo:
+    - app: zesa-billing-postgresql
+      port: 5432
+    - app: zesa-billing-redis
+      port: 6379
+
+probes:
+  startup:
+    command:
+      - /bin/sh
+      - -c
+      - echo "Starting up..."
+    failureThreshold: 30
+    periodSeconds: 5
+  readiness:
+    path: "/api/v1/health"
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  liveness:
+    path: "/api/v1/health"
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3

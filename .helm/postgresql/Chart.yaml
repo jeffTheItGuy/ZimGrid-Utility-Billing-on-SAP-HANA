@@ -1,0 +1,6 @@
+apiVersion: v2
+name: zesa-billing-postgresql
+description: PostgreSQL with PostGIS for ZESA Billing
+type: application
+version: 1.0.0
+appVersion: "16.0"

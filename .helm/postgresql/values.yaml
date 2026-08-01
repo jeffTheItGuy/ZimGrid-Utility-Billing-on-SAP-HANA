@@ -1,0 +1,38 @@
+namespace: zesademo
+
+replicaCount: 1
+
+image:
+  repository: postgis/postgis
+  tag: "16-3.4"
+  pullPolicy: Always
+
+service:
+  port: 5432
+  type: ClusterIP
+
+env:
+  POSTGRES_DB: "zimgrid_billing"
+  PGDATA: "/var/lib/postgresql/data/pgdata"
+
+storage:
+  size: 10Gi
+  storageClass: "local-path"
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "768Mi"
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999
+
+networkPolicy:
+  allowedFrom:
+    - app: zesa-billing-backend

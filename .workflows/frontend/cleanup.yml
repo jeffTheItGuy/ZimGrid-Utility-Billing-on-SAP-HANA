@@ -1,0 +1,43 @@
+name: Frontend Cleanup
+
+on:
+  workflow_dispatch:
+
+env:
+  NAMESPACE: zesademo
+  RELEASE_NAME: frontend-release
+  DEPLOYMENT_NAME: zesa-billing-frontend
+
+jobs:
+  cleanup:
+    runs-on: self-hosted
+    name: Cleanup Frontend
+    steps:
+      - name: Cleanup Helm Release and Resources
+        env:
+          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          if ! grep -q "$REMOTE_SERVER" ~/.ssh/known_hosts 2>/dev/null; then
+            ssh-keyscan -H "$REMOTE_SERVER" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER"               NAMESPACE="${{ env.NAMESPACE }}"               RELEASE_NAME="${{ env.RELEASE_NAME }}"               DEPLOYMENT_NAME="${{ env.DEPLOYMENT_NAME }}"           bash << 'ENDSSH'
+          set -e
+          export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+          echo "Uninstalling Helm release $RELEASE_NAME..."
+          helm uninstall $RELEASE_NAME -n $NAMESPACE 2>/dev/null || echo "⚠️  Release not found or already uninstalled"
+
+          echo "Removing old images..."
+          docker rmi zesa-billing-frontend:latest 2>/dev/null || true
+          k3s ctr images rm docker.io/library/zesa-billing-frontend:latest 2>/dev/null || true
+
+          echo "Checking remaining pods..."
+          kubectl get pods -n $NAMESPACE -l app=$DEPLOYMENT_NAME 2>/dev/null || echo "No pods remaining"
+
+          echo "✓ Frontend cleanup completed"
+          ENDSSH

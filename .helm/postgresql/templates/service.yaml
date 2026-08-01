@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zesa-billing-postgresql-svc
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: zesa-billing-postgresql
+    chart: "zesa-billing-postgresql-1.0.0"
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: zesa-billing-postgresql
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+      name: postgres

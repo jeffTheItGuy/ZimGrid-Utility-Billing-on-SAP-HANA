@@ -1,0 +1,68 @@
+namespace: zesademo
+
+replicaCount: 1
+
+image:
+  repository: zesa-billing-frontend
+  tag: ""
+  pullPolicy: Never
+  pullSecrets: []
+
+service:
+  port: 80
+  type: ClusterIP
+
+ingress:
+  className: traefik
+  host: demo3.nimbusurf.com
+  path: /
+  tlsSecretName: demo3-nimbusurf-tls
+
+envFrom:
+  - secretRef:
+      name: redis-secrets
+
+env:
+  NODE_ENV: "production"
+  VITE_API_BASE_URL: "https://api.demo3.nimbusurf.com"
+
+resources:
+  limits:
+    cpu: "300m"
+    memory: "384Mi"
+  requests:
+    cpu: "50m"
+    memory: "128Mi"
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 101
+  runAsGroup: 101
+  fsGroup: 101
+  seccompProfile:
+    type: RuntimeDefault
+
+networkPolicy:
+  allowedFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: "kube-system"
+  allowedTo:
+    - app: zesa-billing-backend
+      port: 4000
+    - app: zesa-billing-redis
+      port: 6379
+
+probes:
+  readiness:
+    path: "/"
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  liveness:
+    path: "/"
+    initialDelaySeconds: 20
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3

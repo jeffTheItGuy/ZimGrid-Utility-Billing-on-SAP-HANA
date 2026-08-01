@@ -1,0 +1,94 @@
+name: PostgreSQL Helm Only Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      restartReason:
+        description: 'Reason for this restart'
+        required: false
+        default: 'github-actions-helm-update'
+
+env:
+  NAMESPACE: zesademo
+  RELEASE_NAME: postgresql-release
+  DEPLOYMENT_NAME: zesa-billing-postgresql
+
+jobs:
+  update:
+    runs-on: self-hosted
+    name: Helm Update PostgreSQL
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH and Copy Helm Files
+        env:
+          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+          REMOTE_WORKSPACE: ${{ secrets.REMOTE_DEPLOY_DIR }}/postgresql-helm-${{ github.run_id }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          if ! grep -q "$REMOTE_SERVER" ~/.ssh/known_hosts 2>/dev/null; then
+            ssh-keyscan -H "$REMOTE_SERVER" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "mkdir -p $REMOTE_WORKSPACE/.helm"
+          scp -o StrictHostKeyChecking=yes -r .helm/postgresql "$REMOTE_USER@$REMOTE_SERVER:$REMOTE_WORKSPACE/.helm/"
+
+      - name: Execute Helm Upgrade
+        env:
+          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+          REMOTE_WORKSPACE: ${{ secrets.REMOTE_DEPLOY_DIR }}/postgresql-helm-${{ github.run_id }}
+          RESTART_REASON: ${{ github.event.inputs.restartReason }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          if ! grep -q "$REMOTE_SERVER" ~/.ssh/known_hosts 2>/dev/null; then
+            ssh-keyscan -H "$REMOTE_SERVER" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER"               NAMESPACE="${{ env.NAMESPACE }}"               RELEASE_NAME="${{ env.RELEASE_NAME }}"               DEPLOYMENT_NAME="${{ env.DEPLOYMENT_NAME }}"               REMOTE_WORKSPACE="$REMOTE_WORKSPACE"               RESTART_REASON="$RESTART_REASON"           bash << 'ENDSSH'
+          set -e
+          export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+          cd "$REMOTE_WORKSPACE"
+
+          TIMESTAMP=$(date +%s)
+
+          helm upgrade --install $RELEASE_NAME .helm/postgresql             --namespace "$NAMESPACE"             --set namespace="$NAMESPACE"             --set restartTimestamp="$TIMESTAMP"             --set restartReason="$RESTART_REASON"             --timeout=600s
+
+          echo "✓ Helm update initiated"
+
+          echo "Waiting for deployment to be ready..."
+          if ! kubectl wait --for=condition=available --timeout=300s               deployment/$DEPLOYMENT_NAME -n $NAMESPACE; then
+            echo "❌ Deployment failed to become ready"
+            kubectl get pods -n $NAMESPACE -l app=$DEPLOYMENT_NAME
+            kubectl logs -n $NAMESPACE -l app=$DEPLOYMENT_NAME --tail=50
+            echo "Rolling back..."
+            helm rollback $RELEASE_NAME -n $NAMESPACE
+            exit 1
+          fi
+
+          echo "✓ Deployment is healthy and ready"
+          ENDSSH
+
+      - name: Cleanup Remote Workspace
+        if: always()
+        env:
+          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+          REMOTE_WORKSPACE: ${{ secrets.REMOTE_DEPLOY_DIR }}/postgresql-helm-${{ github.run_id }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          if ! grep -q "$REMOTE_SERVER" ~/.ssh/known_hosts 2>/dev/null; then
+            ssh-keyscan -H "$REMOTE_SERVER" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "rm -rf $REMOTE_WORKSPACE"
+          echo "✓ Remote workspace cleaned"

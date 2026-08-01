@@ -1,0 +1,207 @@
+name: Frontend Deploy
+
+on:
+  workflow_dispatch:
+
+env:
+  NAMESPACE: zesademo
+  DOMAIN: demo3.nimbusurf.com
+  RELEASE_NAME: frontend-release
+  DEPLOYMENT_NAME: zesa-billing-frontend
+  SERVICE_PORT: 80
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    name: Deploy Frontend Service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deployment Configuration
+        run: |
+          echo "========================================="
+          echo "     ZESA BILLING FRONTEND DEPLOYMENT    "
+          echo "========================================="
+          echo "Service: Frontend Application"
+          echo "Namespace: ${{ env.NAMESPACE }}"
+          echo "Domain: ${{ env.DOMAIN }}"
+          echo "Release: ${{ env.RELEASE_NAME }}"
+          echo "Build ID: ${{ github.run_id }}-${{ github.run_number }}"
+          echo "========================================="
+
+      - name: Setup SSH and Copy Files to Remote
+        env:
+          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+          REMOTE_WORKSPACE: ${{ secrets.REMOTE_DEPLOY_DIR }}/frontend-${{ github.run_id }}
+        run: |
+          echo "Setting up SSH..."
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          if ! grep -q "$REMOTE_SERVER" ~/.ssh/known_hosts 2>/dev/null; then
+            if ! ssh-keyscan -H "$REMOTE_SERVER" >> ~/.ssh/known_hosts 2>&1; then
+              echo "❌ ERROR: Failed to scan host key for $REMOTE_SERVER"
+              exit 1
+            fi
+          fi
+
+          if ! grep -q "$REMOTE_SERVER" ~/.ssh/known_hosts; then
+            echo "❌ ERROR: Host key not found in known_hosts"
+            exit 1
+          fi
+
+          chmod 600 ~/.ssh/known_hosts
+          echo "✓ SSH host verification configured"
+
+          if [ -z "$REMOTE_WORKSPACE" ] || [ "$REMOTE_WORKSPACE" = "/" ]; then
+            echo "❌ ERROR: Invalid REMOTE_WORKSPACE: '$REMOTE_WORKSPACE'"
+            exit 1
+          fi
+
+          echo "Cleaning remote workspace..."
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "rm -rf $REMOTE_WORKSPACE"
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "mkdir -p $REMOTE_WORKSPACE"
+
+          echo "Copying Frontend files to remote server..."
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "mkdir -p $REMOTE_WORKSPACE/.helm"
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "mkdir -p $REMOTE_WORKSPACE/.docker/prod"
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "mkdir -p $REMOTE_WORKSPACE/frontend"
+
+          scp -o StrictHostKeyChecking=yes -r .helm/frontend "$REMOTE_USER@$REMOTE_SERVER:$REMOTE_WORKSPACE/.helm/"
+          scp -o StrictHostKeyChecking=yes .docker/prod/prod-zesa-billing-frontend.Dockerfile "$REMOTE_USER@$REMOTE_SERVER:$REMOTE_WORKSPACE/.docker/prod/" 2>/dev/null || echo "⚠️  No frontend Dockerfile found"
+          scp -o StrictHostKeyChecking=yes -r frontend/* "$REMOTE_USER@$REMOTE_SERVER:$REMOTE_WORKSPACE/frontend/"
+
+          echo "✓ Files copied successfully"
+
+      - name: Build and Deploy on Remote Server
+        env:
+          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+          REMOTE_WORKSPACE: ${{ secrets.REMOTE_DEPLOY_DIR }}/frontend-${{ github.run_id }}
+          BUILD_ID: ${{ github.run_id }}-${{ github.run_number }}
+          RESTART_REASON: "github-actions-deploy"
+        run: |
+          echo "Setting up SSH..."
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          if ! grep -q "$REMOTE_SERVER" ~/.ssh/known_hosts 2>/dev/null; then
+            ssh-keyscan -H "$REMOTE_SERVER" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER"               RESTART_REASON="$RESTART_REASON"               BUILD_ID="$BUILD_ID"               REMOTE_WORKSPACE="$REMOTE_WORKSPACE"               NAMESPACE="${{ env.NAMESPACE }}"               DOMAIN="${{ env.DOMAIN }}"               DEPLOYMENT_NAME="${{ env.DEPLOYMENT_NAME }}"               RELEASE_NAME="${{ env.RELEASE_NAME }}"               SERVICE_PORT="${{ env.SERVICE_PORT }}"           bash << 'ENDSSH'
+          set -e
+
+          export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+          cd "$REMOTE_WORKSPACE"
+
+          if ! kubectl cluster-info > /dev/null 2>&1; then
+            echo "❌ Error: k3s is not running or KUBECONFIG is not set correctly"
+            exit 1
+          fi
+          echo "✓ k3s cluster is accessible"
+
+          if ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+            echo "Creating namespace $NAMESPACE..."
+            kubectl create namespace "$NAMESPACE"
+            echo "✓ Namespace created"
+          else
+            echo "✓ Namespace already exists"
+          fi
+
+          # ── Clean stale Docker & containerd state before every build ──────────
+          echo "Pruning stale Docker build cache and images..."
+          docker system prune -f
+          docker builder prune -f
+
+          docker rmi zesa-billing-frontend:latest 2>/dev/null || true
+          k3s ctr images rm docker.io/library/zesa-billing-frontend:latest 2>/dev/null || true
+
+          docker images zesa-billing-frontend --format "{{.Tag}}" |             grep -v "$BUILD_ID" |             xargs -r -I{} docker rmi zesa-billing-frontend:{} 2>/dev/null || true
+          # ─────────────────────────────────────────────────────────────────────
+
+          echo "Building frontend image..."
+          docker build               --no-cache               -f .docker/prod/prod-zesa-billing-frontend.Dockerfile               -t zesa-billing-frontend:$BUILD_ID .
+
+          echo "Importing image into k3s containerd..."
+          docker save zesa-billing-frontend:$BUILD_ID | k3s ctr images import -
+
+          TIMESTAMP=$(date +%s)
+
+          echo "Deploying frontend with Helm..."
+          helm upgrade --install $RELEASE_NAME .helm/frontend             --namespace "$NAMESPACE"             --set namespace="$NAMESPACE"             --set ingress.host="${DOMAIN}"             --set restartTimestamp="$TIMESTAMP"             --set restartReason="$RESTART_REASON"             --set image.repository="zesa-billing-frontend"             --set image.tag="$BUILD_ID"             --set image.pullPolicy="Never"             --timeout=600s
+
+          echo "✓ Helm deployment initiated"
+
+          echo ""
+          echo "Waiting for deployment to be ready..."
+          if ! kubectl wait --for=condition=available --timeout=300s               deployment/$DEPLOYMENT_NAME -n $NAMESPACE; then
+            echo "❌ Deployment failed to become ready"
+            kubectl get pods -n $NAMESPACE -l app=$DEPLOYMENT_NAME
+            echo ""
+            kubectl logs -n $NAMESPACE -l app=$DEPLOYMENT_NAME --tail=50
+            echo ""
+            echo "Rolling back to previous version..."
+            helm rollback $RELEASE_NAME -n $NAMESPACE
+            echo "❌ Frontend deployment failed and has been rolled back"
+            exit 1
+          fi
+
+          echo "✓ Deployment is healthy and ready"
+
+          echo ""
+          echo "Checking pod status..."
+          kubectl get pods -n $NAMESPACE -l app=$DEPLOYMENT_NAME
+
+          echo ""
+          echo "Performing health check..."
+          FRONTEND_POD=$(kubectl get pod -l app=$DEPLOYMENT_NAME -n $NAMESPACE -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || echo "")
+          if [ ! -z "$FRONTEND_POD" ]; then
+            if kubectl exec $FRONTEND_POD -n $NAMESPACE -- curl -s -f http://localhost:$SERVICE_PORT > /dev/null 2>&1; then
+              echo "✓ Frontend health check passed"
+            else
+              echo "⚠️  Frontend health check failed, but deployment is ready"
+            fi
+          fi
+          ENDSSH
+
+      - name: Cleanup Remote Workspace
+        if: always()
+        env:
+          REMOTE_SERVER: ${{ secrets.REMOTE_SERVER }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+          REMOTE_WORKSPACE: ${{ secrets.REMOTE_DEPLOY_DIR }}/frontend-${{ github.run_id }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          if ! grep -q "$REMOTE_SERVER" ~/.ssh/known_hosts 2>/dev/null; then
+            ssh-keyscan -H "$REMOTE_SERVER" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+          if [ -z "$REMOTE_WORKSPACE" ] || [ "$REMOTE_WORKSPACE" = "/" ]; then
+            echo "❌ ERROR: Invalid REMOTE_WORKSPACE: '$REMOTE_WORKSPACE'"
+            exit 1
+          fi
+
+          echo "Cleaning remote workspace..."
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "rm -rf $REMOTE_WORKSPACE"
+          echo "✓ Remote workspace cleaned"
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "========================================="
+          echo "  FRONTEND DEPLOYMENT SUMMARY"
+          echo "========================================="
+          echo "✓ Frontend deployment triggered"
+          echo "✓ Image tagged with Build ID: ${{ github.run_id }}-${{ github.run_number }}"
+          echo "✓ Health check and auto-rollback configured"
+          echo ""
+          echo "Access the application at:"
+          echo "  https://${{ env.DOMAIN }}"
+          echo ""
+          echo "Note: Environment variables are managed via ConfigMaps/Secrets"

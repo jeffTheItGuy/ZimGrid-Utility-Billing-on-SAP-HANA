@@ -1,0 +1,28 @@
+{{- if .Values.networkPolicy }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: zesa-billing-postgresql-policy
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: zesa-billing-postgresql
+    chart: "zesa-billing-postgresql-1.0.0"
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  podSelector:
+    matchLabels:
+      app: zesa-billing-postgresql
+  policyTypes:
+    - Ingress
+  ingress:
+    {{- range .Values.networkPolicy.allowedFrom }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app: {{ .app }}
+      ports:
+        - protocol: TCP
+          port: {{ $.Values.service.port }}
+    {{- end }}
+{{- end }}
