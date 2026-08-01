@@ -1,11 +1,6 @@
 -- ============================================================
 -- ZESA Utility Billing Schema
 -- Compatible with: PostgreSQL 16 (dev) | SAP HANA 2.0 (prod)
--- Notes: 
---   - PostgreSQL uses SERIAL/BIGSERIAL; HANA uses BIGINT GENERATED ALWAYS AS IDENTITY
---   - PostgreSQL uses JSONB; HANA uses NCLOB/JSON
---   - PostgreSQL uses PostGIS; HANA uses ST_GEOMETRY
---   - Column store annotations are comments for HANA migration reference
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS postgis;
@@ -32,7 +27,6 @@ CREATE TABLE business_partners (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE, HASH(partner_id) PARTITIONS 4
 
 CREATE INDEX idx_bp_partner_number ON business_partners(partner_number);
 CREATE INDEX idx_bp_national_id ON business_partners(national_id);
@@ -54,7 +48,6 @@ CREATE TABLE business_partner_addresses (
     is_primary BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE, SPATIAL(location_point)
 
 CREATE INDEX idx_address_location ON business_partner_addresses USING GIST(location_point);
 
@@ -80,7 +73,6 @@ CREATE TABLE contract_accounts (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE, BTREE(contract_account_number)
 
 CREATE INDEX idx_ca_partner ON contract_accounts(partner_id, account_status);
 
@@ -105,14 +97,13 @@ CREATE TABLE equipment_master (
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE
 
 CREATE INDEX idx_eq_serial ON equipment_master(serial_number);
 
 -- ===== INSTALLATIONS =====
 CREATE TABLE installations (
     installation_id BIGSERIAL PRIMARY KEY,
-    installation_number VARCHAR(10) UNIQUE NOT NULL,
+    installation_number VARCHAR(20) UNIQUE NOT NULL,
     contract_account_id BIGINT REFERENCES contract_accounts(contract_account_id),
     equipment_id BIGINT REFERENCES equipment_master(equipment_id),
     address_id BIGINT REFERENCES business_partner_addresses(address_id),
@@ -128,7 +119,6 @@ CREATE TABLE installations (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE
 
 CREATE INDEX idx_inst_account ON installations(contract_account_id, connection_status);
 
@@ -136,7 +126,7 @@ CREATE INDEX idx_inst_account ON installations(contract_account_id, connection_s
 CREATE TABLE grid_assets (
     asset_id BIGSERIAL PRIMARY KEY,
     asset_number VARCHAR(18) UNIQUE NOT NULL,
-    asset_category VARCHAR(10) DEFAULT 'TRANSFORMER',
+    asset_category VARCHAR(20) DEFAULT 'TRANSFORMER',
     asset_type VARCHAR(20),
     description VARCHAR(40),
     manufacturer VARCHAR(30),
@@ -157,7 +147,6 @@ CREATE TABLE grid_assets (
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE, SPATIAL(location_point)
 
 CREATE INDEX idx_asset_location ON grid_assets USING GIST(location_point);
 CREATE INDEX idx_asset_region ON grid_assets(region_code, district_code);
@@ -176,11 +165,10 @@ CREATE TABLE substations (
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE, SPATIAL(location_point)
 
 CREATE INDEX idx_sub_location ON substations USING GIST(location_point);
 
--- ===== METER READINGS (High Volume) =====
+-- ===== METER READINGS =====
 CREATE TABLE meter_readings (
     reading_id BIGSERIAL PRIMARY KEY,
     reading_number VARCHAR(20) UNIQUE NOT NULL,
@@ -201,7 +189,6 @@ CREATE TABLE meter_readings (
     billable_flag BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE, RANGE(reading_date) MONTHLY, HASH(contract_account_id) PARTITIONS 8
 
 CREATE INDEX idx_reading_equipment_date ON meter_readings(equipment_id, reading_date DESC);
 CREATE INDEX idx_reading_account_date ON meter_readings(contract_account_id, reading_date DESC);
@@ -220,7 +207,6 @@ CREATE TABLE rate_categories (
     effective_to DATE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: ROW STORE
 
 -- ===== TARIFF STEPS =====
 CREATE TABLE tariff_steps (
@@ -241,7 +227,6 @@ CREATE TABLE tariff_steps (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(rate_category_id, step_number, effective_from)
 );
--- HANA: ROW STORE
 
 -- ===== BILLING DOCUMENTS =====
 CREATE TABLE billing_documents (
@@ -275,7 +260,6 @@ CREATE TABLE billing_documents (
     created_by VARCHAR(12),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE, RANGE(bill_date) MONTHLY
 
 CREATE INDEX idx_bill_number ON billing_documents(bill_number);
 CREATE INDEX idx_bill_account_date ON billing_documents(contract_account_id, bill_date DESC);
@@ -296,7 +280,6 @@ CREATE TABLE billing_line_items (
     currency_code VARCHAR(5) DEFAULT 'USD',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE
 
 -- ===== PREPAID TOKENS =====
 CREATE TABLE prepaid_tokens (
@@ -321,7 +304,6 @@ CREATE TABLE prepaid_tokens (
     expiry_date DATE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE, HASH(contract_account_id) PARTITIONS 8
 
 CREATE INDEX idx_token_meter ON prepaid_tokens(meter_serial, issued_at DESC);
 CREATE INDEX idx_token_idempotency ON prepaid_tokens(idempotency_key);
@@ -330,7 +312,7 @@ CREATE INDEX idx_token_payment ON prepaid_tokens(payment_reference);
 -- ===== INCOMING PAYMENTS =====
 CREATE TABLE incoming_payments (
     payment_id BIGSERIAL PRIMARY KEY,
-    payment_document_number VARCHAR(20) UNIQUE NOT NULL,
+    payment_document_number VARCHAR(30) UNIQUE NOT NULL,
     contract_account_id BIGINT REFERENCES contract_accounts(contract_account_id),
     bill_id BIGINT REFERENCES billing_documents(bill_id),
     company_code VARCHAR(4) DEFAULT 'ZESA',
@@ -351,7 +333,6 @@ CREATE TABLE incoming_payments (
     created_by VARCHAR(12),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE, RANGE(payment_date) MONTHLY
 
 CREATE INDEX idx_payment_doc ON incoming_payments(payment_document_number);
 CREATE INDEX idx_payment_account ON incoming_payments(contract_account_id, payment_date DESC);
@@ -377,7 +358,6 @@ CREATE TABLE service_outages (
     created_by VARCHAR(12),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE
 
 CREATE INDEX idx_outage_asset ON service_outages(affected_asset_id, start_time DESC);
 CREATE INDEX idx_outage_region ON service_outages(affected_region, status);
@@ -392,7 +372,6 @@ CREATE TABLE outage_customer_impacts (
     compensation_applied BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: COLUMN STORE
 
 -- ===== AUDIT LOGS =====
 CREATE TABLE audit_logs (
@@ -408,12 +387,11 @@ CREATE TABLE audit_logs (
     application_name VARCHAR(256),
     client_ip VARCHAR(45)
 );
--- HANA: COLUMN STORE, RANGE(changed_at) MONTHLY
 
 CREATE INDEX idx_audit_table ON audit_logs(table_name, changed_at DESC);
 CREATE INDEX idx_audit_user ON audit_logs(changed_by, changed_at DESC);
 
--- ===== ANALYTIC PRIVILEGES (Metadata Table for Dev) =====
+-- ===== ANALYTIC PRIVILEGES =====
 CREATE TABLE analytic_privileges (
     privilege_id BIGSERIAL PRIMARY KEY,
     privilege_name VARCHAR(256) UNIQUE NOT NULL,
@@ -425,4 +403,3 @@ CREATE TABLE analytic_privileges (
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- HANA: ROW STORE (system table)

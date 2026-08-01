@@ -27,3 +27,33 @@ operationsRouter.get('/outages', async (req, res) => {
 
   res.json(result.rows);
 });
+
+operationsRouter.get('/grid-assets', async (req, res) => {
+  const { page = '1', limit = '50', region, type } = req.query;
+  const pageNum = parseInt(page as string);
+  const limitNum = parseInt(limit as string);
+  const offset = (pageNum - 1) * limitNum;
+
+  let query = `
+    SELECT g.*, s.substation_name, s.substation_code
+    FROM grid_assets g
+    LEFT JOIN substations s ON g.substation_id = s.substation_id
+    WHERE g.is_active = true
+  `;
+  const params: any[] = [];
+
+  if (region) {
+    params.push(region);
+    query += ' AND g.region_code = $' + params.length;
+  }
+  if (type) {
+    params.push(type);
+    query += ' AND g.asset_category = $' + params.length;
+  }
+
+  query += ' ORDER BY g.created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
+  params.push(limitNum, offset);
+
+  const result = await db.query(query, params);
+  res.json({ data: result.rows, page: pageNum, limit: limitNum });
+});

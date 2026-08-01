@@ -12,14 +12,8 @@ billingRouter.get('/documents', async (req, res) => {
   let query = 'SELECT * FROM billing_documents WHERE 1=1';
   const params: any[] = [];
 
-  if (account_id) {
-    params.push(account_id);
-    query += ' AND contract_account_id = $' + params.length;
-  }
-  if (status) {
-    params.push(status);
-    query += ' AND payment_status = $' + params.length;
-  }
+  if (account_id) { params.push(account_id); query += ' AND contract_account_id = $' + params.length; }
+  if (status) { params.push(status); query += ' AND payment_status = $' + params.length; }
 
   query += ' ORDER BY bill_date DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
   params.push(limitNum, offset);

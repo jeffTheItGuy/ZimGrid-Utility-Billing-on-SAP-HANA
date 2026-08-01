@@ -5,7 +5,6 @@ import { HanaAdapter } from '../adapters/hana-adapter';
 import { DatabaseAdapter } from '../adapters/types';
 import { hanaQuery, hanaConfig } from './hana';
 
-// Re-export HANA raw helpers so hana-admin.ts keeps working
 export { hanaQuery, hanaConfig };
 
 export const landscapeMode = process.env.USE_HANA === 'true' ? 'SAP_HANA_PROD' : 'POSTGRESQL_DEV';
@@ -20,22 +19,16 @@ if (process.env.USE_HANA === 'true') {
   const pool = new Pool({
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432'),
-    database: process.env.DB_NAME || 'zesa_billing',
-    user: process.env.DB_USER || 'zesa_admin',
-    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'zimgrid_billing',
+    user: process.env.DB_USER || 'zimgrid_admin',
+    password: process.env.DB_PASSWORD || 'zimgrid_dev_pass',
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
   });
-
-  pool.on('error', (err) => {
-    logger.error('Unexpected database error', err);
-  });
-
+  pool.on('error', (err) => logger.error('Unexpected database error', err));
   adapter = new PostgresAdapter(pool);
 }
 
-// Export adapter as `db` — drop-in replacement for the old pg Pool
 export const db = adapter;
-
 logger.info(`Database pool initialized [Landscape: ${landscapeMode}]`);

@@ -14,9 +14,7 @@ customerRouter.get('/', async (req, res) => {
 
   if (search) {
     const term = `%${search}%`;
-    query += ' AND (first_name ILIKE $' + (params.length + 1) + 
-             ' OR last_name ILIKE $' + (params.length + 2) + 
-             ' OR partner_number ILIKE $' + (params.length + 3) + ')';
+    query += ' AND (first_name ILIKE $' + (params.length + 1) + ' OR last_name ILIKE $' + (params.length + 2) + ' OR partner_number ILIKE $' + (params.length + 3) + ')';
     params.push(term, term, term);
   }
 
@@ -32,8 +30,9 @@ customerRouter.get('/:id/installations', async (req, res) => {
   const result = await db.query(
     `SELECT i.*, e.equipment_number, e.meter_type 
      FROM installations i 
-     JOIN equipment_master e ON i.equipment_id = e.equipment_id
-     WHERE i.contract_account_id = $1`,
+     JOIN equipment_master e ON i.equipment_id = e.equipment_id 
+     JOIN contract_accounts ca ON i.contract_account_id = ca.contract_account_id 
+     WHERE ca.partner_id = $1`,
     [id]
   );
   res.json(result.rows);

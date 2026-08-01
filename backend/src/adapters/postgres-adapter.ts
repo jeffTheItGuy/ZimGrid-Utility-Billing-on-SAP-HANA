@@ -10,13 +10,8 @@ export class PostgresAdapter implements DatabaseAdapter {
   }
 
   async getSystemHealth(): Promise<SystemHealthResult> {
-    const dbSize = await this.query(
-      `SELECT pg_database_size(current_database()) as size_bytes`
-    );
-    const activeConnections = await this.query(
-      `SELECT count(*) as count FROM pg_stat_activity`
-    );
-
+    const dbSize = await this.query(`SELECT pg_database_size(current_database()) as size_bytes`);
+    const activeConnections = await this.query(`SELECT count(*) as count FROM pg_stat_activity`);
     return {
       database_size_bytes: parseInt(dbSize.rows[0].size_bytes),
       active_connections: parseInt(activeConnections.rows[0].count),
@@ -29,10 +24,7 @@ export class PostgresAdapter implements DatabaseAdapter {
 
   async getTableGrowth(): Promise<TableGrowthRecord[]> {
     const result = await this.query(
-      `SELECT schemaname,
-              relname as table_name,
-              pg_size_pretty(pg_total_relation_size(relid)) as total_size,
-              pg_total_relation_size(relid) as size_bytes
+      `SELECT schemaname, relname as table_name, pg_size_pretty(pg_total_relation_size(relid)) as total_size, pg_total_relation_size(relid) as size_bytes
        FROM pg_stat_user_tables
        WHERE relname IN ('meter_readings', 'billing_documents', 'incoming_payments', 'prepaid_tokens')
        ORDER BY pg_total_relation_size(relid) DESC`
