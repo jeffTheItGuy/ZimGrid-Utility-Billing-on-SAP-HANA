@@ -17,6 +17,8 @@ paymentRouter.post('/process', async (req, res) => {
 
   const result = await db.query(`SELECT payment_id FROM incoming_payments WHERE payment_document_number = $1`, [paymentDocNum]);
   const payment_id = result.rows[0].payment_id;
-  await redis.setex(`payment:${idempotency_key}`, 86400, payment_id);
+
+  // Fixed: setEx (camelCase) for redis v4+
+  await redis.setEx(`payment:${idempotency_key}`, 86400, payment_id.toString());
   res.json({ payment_id, status: 'processed' });
 });
