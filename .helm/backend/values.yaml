@@ -23,8 +23,7 @@ envFrom:
       name: database-secrets
   - secretRef:
       name: redis-secrets
-  - secretRef:
-      name: hana-secrets
+
 
 env:
   PORT: "4000"
