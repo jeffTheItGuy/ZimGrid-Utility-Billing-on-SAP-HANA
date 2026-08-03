@@ -12,7 +12,6 @@ RUN npm run build
 # ── Serve stage ─────────────────────────────────────────────
 FROM nginx:alpine
 
-# Remove default config and set up dirs for non-root user (uid 101)
 RUN rm /etc/nginx/conf.d/default.conf && \
     mkdir -p /tmp/client_temp /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp && \
     chown -R 101:101 /tmp /usr/share/nginx/html /etc/nginx/conf.d

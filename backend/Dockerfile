@@ -4,7 +4,6 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-# Fallback to npm install if you haven't committed package-lock.json
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 COPY . .
@@ -15,18 +14,18 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Non-root user (matches your Helm securityContext)
+# Create group 3000 (matches Helm runAsGroup) and add existing 'node' user to it
 RUN addgroup -g 3000 -S appgroup && \
-    adduser -u 1000 -S appuser -G appgroup && \
+    addgroup node appgroup && \
     mkdir -p /tmp /.cache && \
-    chown -R appuser:appgroup /app /tmp /.cache
+    chown -R node:appgroup /app /tmp /.cache
 
-# Copy only what the app needs to run
-COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
-COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
-COPY --from=builder --chown=appuser:appgroup /app/package*.json ./
+# Copy only production artifacts
+COPY --from=builder --chown=node:appgroup /app/dist ./dist
+COPY --from=builder --chown=node:appgroup /app/node_modules ./node_modules
+COPY --from=builder --chown=node:appgroup /app/package*.json ./
 
-USER appuser
+USER node
 
 ENV NODE_ENV=production
 ENV PORT=4000
