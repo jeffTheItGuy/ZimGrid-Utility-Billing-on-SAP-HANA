@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zesa-billing-redis-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: zesa-billing-redis
+    chart: "zesa-billing-redis-1.0.0"
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  redis.conf: |
+    dir /data
+    bind 0.0.0.0
+    {{- if .Values.redisConfig.maxmemory }}
+    maxmemory {{ .Values.redisConfig.maxmemory }}
+    {{- end }}
+    {{- if .Values.redisConfig.maxmemoryPolicy }}
+    maxmemory-policy {{ .Values.redisConfig.maxmemoryPolicy }}
+    {{- end }}
+    {{- if .Values.redisConfig.appendonly }}
+    appendonly {{ .Values.redisConfig.appendonly }}
+    {{- end }}
+    {{- if hasKey .Values.redisConfig "save" }}
+      {{- if eq .Values.redisConfig.save "" }}
+    save ""
+      {{- else }}
+    save {{ .Values.redisConfig.save }}
+      {{- end }}
+    {{- end }}
