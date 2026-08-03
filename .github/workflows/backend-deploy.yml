@@ -66,11 +66,9 @@ jobs:
 
           echo "Copying Backend files to remote server..."
           ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "mkdir -p $REMOTE_WORKSPACE/.helm"
-          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "mkdir -p $REMOTE_WORKSPACE/.docker/prod"
           ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" "mkdir -p $REMOTE_WORKSPACE/backend"
 
           scp -o StrictHostKeyChecking=yes -r .helm/backend "$REMOTE_USER@$REMOTE_SERVER:$REMOTE_WORKSPACE/.helm/"
-          scp -o StrictHostKeyChecking=yes .docker/prod/prod-zesa-billing-backend.Dockerfile "$REMOTE_USER@$REMOTE_SERVER:$REMOTE_WORKSPACE/.docker/prod/" 2>/dev/null || echo "⚠️  No backend Dockerfile found"
           scp -o StrictHostKeyChecking=yes -r backend/* "$REMOTE_USER@$REMOTE_SERVER:$REMOTE_WORKSPACE/backend/"
 
           echo "✓ Files copied successfully"
@@ -91,7 +89,16 @@ jobs:
             ssh-keyscan -H "$REMOTE_SERVER" >> ~/.ssh/known_hosts 2>/dev/null
           fi
 
-          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER"               RESTART_REASON="$RESTART_REASON"               BUILD_ID="$BUILD_ID"               REMOTE_WORKSPACE="$REMOTE_WORKSPACE"               NAMESPACE="${{ env.NAMESPACE }}"               DOMAIN="${{ env.DOMAIN }}"               DEPLOYMENT_NAME="${{ env.DEPLOYMENT_NAME }}"               RELEASE_NAME="${{ env.RELEASE_NAME }}"               SERVICE_PORT="${{ env.SERVICE_PORT }}"           bash << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=yes "$REMOTE_USER@$REMOTE_SERVER" \
+            RESTART_REASON="$RESTART_REASON" \
+            BUILD_ID="$BUILD_ID" \
+            REMOTE_WORKSPACE="$REMOTE_WORKSPACE" \
+            NAMESPACE="${{ env.NAMESPACE }}" \
+            DOMAIN="${{ env.DOMAIN }}" \
+            DEPLOYMENT_NAME="${{ env.DEPLOYMENT_NAME }}" \
+            RELEASE_NAME="${{ env.RELEASE_NAME }}" \
+            SERVICE_PORT="${{ env.SERVICE_PORT }}" \
+          bash << 'ENDSSH'
           set -e
 
           export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
@@ -120,11 +127,16 @@ jobs:
           docker rmi zesa-billing-backend:latest 2>/dev/null || true
           k3s ctr images rm docker.io/library/zesa-billing-backend:latest 2>/dev/null || true
 
-          docker images zesa-billing-backend --format "{{.Tag}}" |             grep -v "$BUILD_ID" |             xargs -r -I{} docker rmi zesa-billing-backend:{} 2>/dev/null || true
+          docker images zesa-billing-backend --format "{{.Tag}}" | \
+            grep -v "$BUILD_ID" | \
+            xargs -r -I{} docker rmi zesa-billing-backend:{} 2>/dev/null || true
           # ─────────────────────────────────────────────────────────────────────
 
           echo "Building backend image..."
-          docker build               --no-cache               -f .docker/prod/prod-zesa-billing-backend.Dockerfile               -t zesa-billing-backend:$BUILD_ID .
+          docker build \
+            --no-cache \
+            -f backend/Dockerfile \
+            -t zesa-billing-backend:$BUILD_ID .
 
           echo "Importing image into k3s containerd..."
           docker save zesa-billing-backend:$BUILD_ID | k3s ctr images import -
@@ -132,13 +144,23 @@ jobs:
           TIMESTAMP=$(date +%s)
 
           echo "Deploying backend with Helm..."
-          helm upgrade --install $RELEASE_NAME .helm/backend             --namespace "$NAMESPACE"             --set namespace="$NAMESPACE"             --set ingress.host="${DOMAIN}"             --set restartTimestamp="$TIMESTAMP"             --set restartReason="$RESTART_REASON"             --set image.repository="zesa-billing-backend"             --set image.tag="$BUILD_ID"             --set image.pullPolicy="Never"             --timeout=600s
+          helm upgrade --install $RELEASE_NAME .helm/backend \
+            --namespace "$NAMESPACE" \
+            --set namespace="$NAMESPACE" \
+            --set ingress.host="${DOMAIN}" \
+            --set restartTimestamp="$TIMESTAMP" \
+            --set restartReason="$RESTART_REASON" \
+            --set image.repository="zesa-billing-backend" \
+            --set image.tag="$BUILD_ID" \
+            --set image.pullPolicy="Never" \
+            --timeout=600s
 
           echo "✓ Helm deployment initiated"
 
           echo ""
           echo "Waiting for deployment to be ready..."
-          if ! kubectl wait --for=condition=available --timeout=300s               deployment/$DEPLOYMENT_NAME -n $NAMESPACE; then
+          if ! kubectl wait --for=condition=available --timeout=300s \
+            deployment/$DEPLOYMENT_NAME -n $NAMESPACE; then
             echo "❌ Deployment failed to become ready"
             kubectl get pods -n $NAMESPACE -l app=$DEPLOYMENT_NAME
             echo ""
