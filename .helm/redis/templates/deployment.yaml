@@ -49,16 +49,10 @@ spec:
           command:
             - /bin/sh
             - -c
-          {{- if .Values.auth.enabled }}
             - |
-              exec redis-server /usr/local/etc/redis/redis.conf \
-                --requirepass "$REDIS_PASSWORD" \
+              exec redis-server /usr/local/etc/redis/redis.conf                 {{- if .Values.auth.enabled }}
+                --requirepass "$REDIS_PASSWORD"                 {{- end }}
                 --bind 0.0.0.0
-          {{- else }}
-            - |
-              exec redis-server /usr/local/etc/redis/redis.conf \
-                --bind 0.0.0.0
-          {{- end }}
           volumeMounts:
             - name: redis-storage
               mountPath: /data

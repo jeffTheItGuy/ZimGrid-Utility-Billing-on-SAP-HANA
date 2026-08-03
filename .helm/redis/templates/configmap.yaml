@@ -21,10 +21,8 @@ data:
     {{- if .Values.redisConfig.appendonly }}
     appendonly {{ .Values.redisConfig.appendonly }}
     {{- end }}
-    {{- if hasKey .Values.redisConfig "save" }}
-      {{- if eq .Values.redisConfig.save "" }}
+    {{- if eq (.Values.redisConfig.save | toString) "" }}
     save ""
-      {{- else }}
+    {{- else if .Values.redisConfig.save }}
     save {{ .Values.redisConfig.save }}
-      {{- end }}
     {{- end }}
