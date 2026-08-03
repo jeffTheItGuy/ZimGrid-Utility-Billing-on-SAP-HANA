@@ -136,7 +136,8 @@ jobs:
           docker build \
             --no-cache \
             -f backend/Dockerfile \
-            -t zesa-billing-backend:$BUILD_ID .
+            -t zesa-billing-backend:$BUILD_ID \
+            backend/
 
           echo "Importing image into k3s containerd..."
           docker save zesa-billing-backend:$BUILD_ID | k3s ctr images import -
