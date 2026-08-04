@@ -2,9 +2,9 @@ import { useNavigate } from 'react-router-dom'
 import { Zap, ArrowRight, Database, Activity, Map, Server, AlertTriangle } from 'lucide-react'
 
 const highlights = [
-  { icon: Database, text: 'HANA performance & backup monitoring' },
+  { icon: Database, text: 'Backup monitoring' },
   { icon: Map, text: 'Grid asset mapping with outage impact' },
-  { icon: Server, text: 'End-to-end billing & prepaid workflows' },
+  { icon: Server, text: 'End-to-end billing and prepaid workflows' },
   { icon: Activity, text: 'Real-time system health dashboard' },
 ]
 
@@ -37,7 +37,20 @@ export function LandingPage() {
               ZESA Billing Operations
             </h1>
             <p className="text-lg text-slate-600 max-w-xl mx-auto">
-              A React + TypeScript dashboard demonstrating SAP S/4 HANA DBA skills for ZESA Holdings.
+              A React + TypeScript dashboard demonstrating DBA skills. It uses a PostgreSQL database with a HANA-compatible schema.
+            </p>
+            
+            {/* FIXED LINE BELOW */}
+            <p className="text-slate-600">
+              <strong>Full Repo: </strong>
+              <a 
+                href="https://github.com/jeffTheItGuy/ZimGrid-Utility-Billing-on-SAP-HANA" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sky-600 hover:underline font-medium"
+              >
+                ZimGrid-Utility-Billing-on-SAP-HANA
+              </a>
             </p>
           </div>
 
@@ -47,8 +60,7 @@ export function LandingPage() {
               <div className="flex items-center gap-3">
                 <Database className="w-5 h-5 text-yellow-400" />
                 <div>
-                  <h2 className="font-semibold">Systems Engineer — SAP S/4 HANA DBA</h2>
-                  <p className="text-xs text-slate-400">ZESA Holdings &nbsp;•&nbsp; Harare, Zimbabwe &nbsp;•&nbsp; Closing 7 Aug 2026</p>
+                  <h2 className="font-semibold">Database showcase</h2>
                 </div>
               </div>
               <span className="hidden sm:inline-block px-2 py-1 bg-yellow-500/20 text-yellow-300 text-xs rounded font-medium">

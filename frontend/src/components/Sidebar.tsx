@@ -2,8 +2,14 @@ import { NavLink } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import { api } from '../services/api'
 import { 
-  LayoutDashboard, Users, Gauge, Receipt, CreditCard, 
-  Zap, Map, Activity, Database 
+  LayoutDashboard, 
+  Users, 
+  Gauge, 
+  Receipt, 
+  CreditCard, 
+  Map, 
+  Activity, 
+  Database 
 } from 'lucide-react'
 
 const navItems = [
@@ -23,14 +29,20 @@ export function Sidebar() {
   )
 
   const isHana = health?.landscape === 'SAP_HANA_PROD'
+  const iconSrc = `${import.meta.env.BASE_URL}icon.svg`
 
   return (
     <aside className="w-64 bg-slate-900 text-white flex flex-col">
       <div className="p-6 flex items-center gap-3">
-        <Zap className="w-8 h-8 text-yellow-400" />
+        <img
+          src={iconSrc}
+          alt=""
+          aria-hidden="true"
+          className="w-8 h-8"
+        />
+
         <div>
           <h1 className="font-bold text-lg leading-tight">ZESA Billing</h1>
-          <p className="text-xs text-slate-400">SAP HANA Ops</p>
         </div>
       </div>
 
@@ -55,21 +67,31 @@ export function Sidebar() {
 
       <div className="p-4 border-t border-slate-800 space-y-2">
         <div className="flex items-center gap-2 text-xs text-slate-500">
-          <Activity className={`w-4 h-4 ${health?.status === 'ok' ? 'text-green-400' : 'text-red-400'}`} />
+          <Activity
+            className={`w-4 h-4 ${
+              health?.status === 'ok' ? 'text-green-400' : 'text-red-400'
+            }`}
+          />
           <span>
             {isHana ? 'HANA Primary — Harare' : 'PostgreSQL — Dev Mode'}
           </span>
         </div>
+
         {isHana && (
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <Activity className="w-4 h-4 text-green-400" />
             <span>Replication — Bulawayo</span>
           </div>
         )}
+
         <div className="pt-2">
-          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${
-            isHana ? 'bg-purple-900 text-purple-300' : 'bg-slate-800 text-slate-400'
-          }`}>
+          <span
+            className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${
+              isHana
+                ? 'bg-purple-900 text-purple-300'
+                : 'bg-slate-800 text-slate-400'
+            }`}
+          >
             {health?.landscape || 'POSTGRESQL_DEV'}
           </span>
         </div>

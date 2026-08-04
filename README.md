@@ -1,6 +1,6 @@
-# ZimGrid — Utility Billing & Grid Operations on SAP HANA
+# ZimGrid — Utility Billing and Grid Operations on SAP HANA
 
-> **A production-grade database operations platform for power utilities, engineered on SAP HANA 2.0 with real-time monitoring, disaster recovery architecture, multi-currency billing, and a transparent dual-engine database layer.**
+> **A production-grade database operations platform for power utilities, engineered for SAP HANA 2.0 with real-time monitoring, disaster recovery architecture, multi-currency billing, and a transparent dual-engine database layer.**
 > 
 > **Built as a portfolio project to demonstrate SAP S/4 HANA Database Administration expertise for the ZESA Holdings Systems Engineer (SAP S/4 HANA DBA) role.**
 

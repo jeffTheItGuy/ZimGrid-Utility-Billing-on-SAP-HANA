@@ -25,8 +25,8 @@ export function Header() {
               <User className="w-4 h-4 text-sky-600" />
             </div>
             <div className="text-sm">
-              <p className="font-medium">DBA Admin</p>
-              <p className="text-xs text-gray-500">HANA Administrator</p>
+              <p className="font-medium">DB Admin</p>
+              <p className="text-xs text-gray-500">Administrator</p>
             </div>
           </div>
         </div>
