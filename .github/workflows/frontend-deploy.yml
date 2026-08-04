@@ -135,7 +135,7 @@ jobs:
           echo "Building frontend image..."
           docker build \
             --no-cache \
-            --build-arg VITE_API_BASE_URL=https://api.demo3.nimbusurf.com \
+            --build-arg VITE_API_BASE_URL=/api \
             -f frontend/Dockerfile \
             -t zesa-billing-frontend:$BUILD_ID \
             frontend/

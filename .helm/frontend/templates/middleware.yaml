@@ -18,4 +18,4 @@ spec:
       X-Content-Type-Options: "nosniff"
       X-Frame-Options: "SAMEORIGIN"
       X-XSS-Protection: "1; mode=block"
-      content-security-policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.demo3.nimbusurf.com; frame-src https:;"
+      content-security-policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-src https:;"
