@@ -8,7 +8,7 @@
 
 ## What This Is
 
-A full-stack utility billing system built for the unique challenges of **African power distribution** — unstable networks, dual-currency economies (USD/local), prepaid meter token vending, and grid asset tracking across vast geographic regions.
+A full-stack utility billing system built for widthstanding  unstable networks, dual-currency economies (USD/local), prepaid meter token vending, and grid asset tracking across vast geographic regions.
 
 The backend runs on **SAP HANA 2.0** (column-store, in-memory) with a **React operations dashboard** that gives database administrators real-time visibility into system health, replication status, and high-volume transaction tables.
 
@@ -18,89 +18,19 @@ The critical architectural addition is a **Database Adapter Layer** with an **SQ
 
 ---
 
-## Why This Matters for the Role
+## Why This Matters 
 
 | What ZESA Needs | What This Project Proves |
 |---|---|
 | Administer SAP S/4 HANA databases | Multi-tenant HANA container setup, tenant DB management, memory tuning |
 | Ensure performance, availability, security | Live memory gauges, delta merge monitoring, analytic privileges, audit logging |
-| Database backups & disaster recovery | System replication (Primary → DR), automated backup catalog, point-in-time recovery runbook |
-| Monitor & troubleshoot | Operations dashboard with slow query tracking, table growth alerts, replication lag |
-| Implement upgrades & patches | Documented patch strategy, zero-downtime tenant migration approach |
-| Manage user access & permissions | Role-based analytic privileges, row-level security, audit trail compliance |
+| Database backups and disaster recovery | System replication (Primary → DR), automated backup catalog, point-in-time recovery runbook |
+| Monitoring and troubleshoot | Operations dashboard with slow query tracking, table growth alerts, replication lag |
+| Implement upgrades and patches | Documented patch strategy, zero-downtime tenant migration approach |
+| Manage user access and permissions | Role-based analytic privileges, row-level security, audit trail compliance |
 | **Cross-engine portability** | **Database adapter pattern + SQL translator enabling seamless PostgreSQL ↔ HANA migration** |
 
----
 
-## Architecture
-
-### Three-Tier Landscape
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Fiori Gateway                        │
-│                   (SAP Fiori Launchpad)                     │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   S/4HANA App Server (ABAP)                  │
-│              OData Services / BAPI / RFC                     │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              SAP HANA 2.0 — Multi-Tenant DB                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │  System DB   │  │  Tenant DB   │  │  XS Engine   │     │
-│  │  (MANAGES)   │  │   (HDB)      │  │  (SERVICES)  │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                    ┌─────────┴─────────┐
-                    ▼                   ▼
-         ┌──────────────┐    ┌──────────────┐
-         │   Primary    │◄──►│  Secondary   │
-         │   (Harare)   │ SR │  (Bulawayo)  │
-         └──────────────┘    └──────────────┘
-```
-
-### Dual-Database Landscape with Adapter Layer
-
-```
-┌─────────────────────────┐         ┌─────────────────────────┐
-│   Development (Docker)  │         │   Production (ZESA DC)  │
-│                         │         │                         │
-│  PostgreSQL 16 + PostGIS│         │  SAP HANA 2.0 MDC       │
-│  ├─ zimgrid_billing     │  ───►  │  ├─ SYSTEMDB            │
-│  ├─ Column-store schema │         │  ├─ Tenant DB (HDB)    │
-│  └─ GiST spatial indexes│         │  ├─ Column tables       │
-│                         │         │  ├─ Range+Hash parts    │
-│  Redis (idempotency)    │         │  └─ System Replication  │
-│  Node.js API            │         │                         │
-│  React Dashboard        │         │  Primary: Harare        │
-│                         │         │  Secondary: Bulawayo DR │
-└─────────────────────────┘         └─────────────────────────┘
-         │
-         │  USE_HANA=true
-         ▼
-  ┌──────────────────────────────────────────┐
-  │        Database Adapter Layer            │
-  │  ┌────────────────────────────────────┐  │
-  │  │   PostgresAdapter  (pg Pool)       │  │
-  │  │   HanaAdapter      (@sap/hana)     │  │
-  │  └────────────────────────────────────┘  │
-  │  ┌────────────────────────────────────┐  │
-  │  │   SQL Dialect Translator           │  │
-  │  │   $1 → ?  |  ILIKE → UPPER()      │  │
-  │  │   NOW() → CURRENT_TIMESTAMP        │  │
-  │  │   INTERVAL → ADD_MONTHS/ADD_DAYS   │  │
-  │  │   DATE_TRUNC → TRUNC               │  │
-  │  │   TIMESTAMPTZ → TIMESTAMP          │  │
-  │  │   PostGIS → ST_GEOMETRY            │  │
-  │  └────────────────────────────────────┘  │
-  └──────────────────────────────────────────┘
-```
 
 ### HANA Configuration
 
@@ -121,16 +51,8 @@ The critical architectural addition is a **Database Adapter Layer** with an **SQ
 - **Prepaid token vending** with distributed idempotency locks (prevents double-charge on network retry)
 - **Dual-currency billing** (USD + ZiG) with locked exchange rates for regulatory compliance
 - **Grid asset mapping** with spatial queries — find all transformers within 5km of an outage
-- **ZERA-compliant audit trails** — every billing change logged immutably for 7 years
+- **ZERA-compliant audit trails** every billing change logged immutably for 7 years
 
-### For the DBA
-- **Real-time HANA health dashboard** — memory pressure (`M_HOST_INFORMATION`), CPU, active connections
-- **System replication monitor** — Primary/DR lag in seconds with auto-failover runbook
-- **Delta merge tracking** — automated scheduling for high-insert meter reading tables (`M_TABLES`)
-- **Table growth visualization** — column-store size trends with partition pruning stats
-- **Backup verification panel** — last full backup, incremental status, catalog integrity (`M_BACKUP_CATALOG`)
-- **Long-running statement alerts** — performance troubleshooting via `M_ACTIVE_STATEMENTS`
-- **Transparent engine switching** — same API codebase runs on PostgreSQL (dev) or HANA (prod) via adapter pattern
 
 ---
 
@@ -162,7 +84,7 @@ The adapter layer is the core architectural feature that makes this project prod
 
 ### INSERT Pattern (Portable)
 
-HANA does not support PostgreSQL's `RETURNING` clause in the same way. The adapter uses a **natural-key insert + select** pattern:
+The adapter uses a **natural-key insert + select** pattern:
 
 ```typescript
 // 1. Generate deterministic document number
@@ -350,16 +272,16 @@ See `docs/runbooks/POSTGRES_TO_HANA_MIGRATION.md` for the full migration checkli
 
 ## Skills Demonstrated
 
-- **SAP HANA 2.0 Administration** — MDC, column store, partitioning, delta merge, system replication
-- **SAP S/4 HANA Integration** — Calculation views, analytic privileges, OData services
-- **Database Performance Tuning** — Index strategy, partition pruning, query plan analysis
+- **SAP HANA 2.0 Administration** MDC, column store, partitioning, delta merge, system replication
+- **SAP S/4 HANA Integration** Calculation views, analytic privileges, OData services
+- **Database Performance Tuning** Index strategy, partition pruning, query plan analysis
 - **Disaster Recovery** — Backup catalog management, point-in-time recovery, failover runbooks
-- **Security & Compliance** — Row-level security, audit logging, X.509 certificate auth
-- **Landscape Architecture** — Dual-mode database layer (PostgreSQL dev ↔ HANA prod) with zero-downtime migration path
-- **Database Adapter Pattern** — Runtime engine abstraction with unified `DatabaseAdapter` interface
-- **SQL Dialect Engineering** — Cross-engine translator handling parameters, date arithmetic, spatial types, and upsert patterns
-- **Full-Stack Engineering** — Node.js API design, React dashboard, Docker containerization
-- **Domain Expertise** — Utility billing, prepaid metering, multi-currency, grid asset management
+- **Security & Compliance** Row-level security, audit logging, X.509 certificate auth
+- **Landscape Architecture** Dual-mode database layer (PostgreSQL dev ↔ HANA prod) with zero-downtime migration path
+- **Database Adapter Pattern** Runtime engine abstraction with unified `DatabaseAdapter` interface
+- **SQL Dialect Engineering** Cross-engine translator handling parameters, date arithmetic, spatial types, and upsert patterns
+- **Full-Stack Engineering** Node.js API design, React dashboard, Docker containerization
+- **Domain Expertise** Utility billing, prepaid metering, multi-currency, grid asset management
 
 ---
 
@@ -369,4 +291,4 @@ MIT — Built for portfolio and educational purposes. Not affiliated with any ut
 
 ---
 
-**Built for the ZESA Holdings Systems Engineer (SAP S/4 HANA Database Administrator) position**
+**Project was initially built for the ZESA Holdings Systems Engineer (SAP S/4 HANA Database Administrator) position**

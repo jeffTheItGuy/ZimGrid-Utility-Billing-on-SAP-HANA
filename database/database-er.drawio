@@ -1,6 +1,6 @@
 <mxfile host="Electron">
   <diagram name="Page-1" id="kU58hkE87iR4d9-Leo50">
-    <mxGraphModel dx="2005" dy="1608" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+    <mxGraphModel dx="7397" dy="3980" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -2877,7 +2877,7 @@
         </mxCell>
         <UserObject label="  Delta Merge Strategy&#xa;  --&#xa;  - meter_readings: HIGH insert volume&#xa;    -&gt; Auto merge threshold: 10M delta records&#xa;    -&gt; Scheduled merge: 02:00 daily&#xa;  - billing_documents: Medium volume&#xa;    -&gt; Auto merge after batch billing run&#xa;  - Monitor M_DELTA_MERGE_STATISTICS for&#xa;    failed merges and duration spikes" plantUmlId="note_565" plantUmlBaseStyle="shape=note;size=10;fillColor=#FEFFDD;strokeColor=#181818;fontSize=13;fontColor=#000000;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=4;" plantUmlBaseValue="  Delta Merge Strategy&#xa;  --&#xa;  - meter_readings: HIGH insert volume&#xa;    -&gt; Auto merge threshold: 10M delta records&#xa;    -&gt; Scheduled merge: 02:00 daily&#xa;  - billing_documents: Medium volume&#xa;    -&gt; Auto merge after batch billing run&#xa;  - Monitor M_DELTA_MERGE_STATISTICS for&#xa;    failed merges and duration spikes" id="8ErsfXVJq5A-hRa_Nps5-565">
           <mxCell parent="8ErsfXVJq5A-hRa_Nps5-1" style="shape=note;size=10;fillColor=#FEFFDD;strokeColor=#181818;fontSize=13;fontColor=#000000;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=4;" vertex="1">
-            <mxGeometry height="171" width="323" x="1732.175" y="1400" as="geometry" />
+            <mxGeometry height="171" width="323" x="2568.875" y="1340" as="geometry" />
           </mxCell>
         </UserObject>
       </root>
