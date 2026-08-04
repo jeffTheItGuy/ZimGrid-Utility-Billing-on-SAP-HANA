@@ -18,7 +18,12 @@ spec:
       labels:
         app: zesa-billing-redis
       annotations:
-        rollme: {{ randAlphaNum 5 | quote }}
+        {{- if .Values.restartTimestamp }}
+        restartTimestamp: {{ .Values.restartTimestamp | quote }}
+        {{- end }}
+        {{- if .Values.restartReason }}
+        restartReason: {{ .Values.restartReason | quote }}
+        {{- end }}
     spec:
       securityContext:
         {{- toYaml .Values.securityContext | nindent 8 }}
@@ -50,9 +55,7 @@ spec:
             - /bin/sh
             - -c
             - |
-              exec redis-server /usr/local/etc/redis/redis.conf                 {{- if .Values.auth.enabled }}
-                --requirepass "$REDIS_PASSWORD"                 {{- end }}
-                --bind 0.0.0.0
+              exec redis-server /usr/local/etc/redis/redis.conf{{- if .Values.auth.enabled }} --requirepass "$REDIS_PASSWORD"{{- end }} --bind 0.0.0.0
           volumeMounts:
             - name: redis-storage
               mountPath: /data
