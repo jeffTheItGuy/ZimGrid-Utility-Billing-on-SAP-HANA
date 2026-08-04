@@ -141,7 +141,7 @@ docker-compose up --build
 ## Quick Start
 
 ### Prerequisites
-- Docker & Docker Compose
+- Docker and Docker Compose
 - Node.js 20+ (for local dev outside containers)
 
 ### Run Everything
